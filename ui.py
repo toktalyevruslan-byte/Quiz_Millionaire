@@ -4,6 +4,7 @@ from logic import QuizEngine
 import os
 from data_handler import DataManager
 from sound_manager import SoundManager
+import json
 
 # Тёмная тема
 ctk.set_appearance_mode("dark")
@@ -45,6 +46,677 @@ def load_fonts():
 FONTS = load_fonts()
 
 
+class MainMenuFrame(ctk.CTkFrame):
+    def __init__(self, parent, app: "QuizApp") -> None:
+        super().__init__(parent, fg_color="#020b23")
+        self.app = app
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)
+
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=(20, 20))
+        top_frame.grid_columnconfigure(0, weight=1)
+        top_frame.grid_rowconfigure(0, weight=1)
+        top_frame.grid_rowconfigure(1, weight=0)
+
+        studio_frame = ctk.CTkFrame(top_frame, fg_color="#041637", corner_radius=40)
+        studio_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 20))
+        studio_frame.grid_columnconfigure(0, weight=1)
+        studio_frame.grid_rowconfigure(0, weight=1)
+
+        center_label = ctk.CTkLabel(
+            studio_frame,
+            text="",
+            fg_color="#030d24",
+        )
+        center_label.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
+
+        title_frame = ctk.CTkFrame(
+            top_frame,
+            fg_color="#071a3d",
+            corner_radius=30,
+        )
+        title_frame.grid(row=1, column=0, pady=(0, 20))
+        title_label = ctk.CTkLabel(
+            title_frame,
+            text="КТО ХОЧЕТ СТАТЬ МИЛЛИОНЕРОМ?",
+            font=ctk.CTkFont(family=FONTS["ladder"], size=26, weight="bold"),
+            text_color="#ffd700",
+            padx=40,
+            pady=12,
+        )
+        title_label.pack()
+
+        play_btn = ctk.CTkButton(
+            self,
+            text="ИГРАТЬ",
+            font=ctk.CTkFont(size=26, weight="bold"),
+            width=320,
+            height=80,
+            fg_color="#0d5ecd",
+            hover_color="#1a75ff",
+            text_color="#ffd700",
+            corner_radius=40,
+            border_width=3,
+            border_color="#4fd5ff",
+            command=self.app.start_game,
+        )
+        play_btn.grid(row=1, column=0, pady=(0, 20), sticky="n")
+
+
+class SettingsFrame(ctk.CTkFrame):
+    def __init__(self, parent, app: "QuizApp") -> None:
+        super().__init__(parent, fg_color="transparent")
+        self.app = app
+        self.grid_columnconfigure(0, weight=1)
+
+        # Заголовок
+        title_label = ctk.CTkLabel(
+            self,
+            text="НАСТРОЙКИ",
+            font=ctk.CTkFont(family=FONTS["question"], size=28, weight="bold"),
+            text_color="#ffd700",
+        )
+        title_label.pack(pady=(30, 30))
+
+        # Блок звука
+        sound_frame = ctk.CTkFrame(self, fg_color="#041637", corner_radius=15)
+        sound_frame.pack(fill="x", padx=40, pady=(0, 20))
+
+        sound_title = ctk.CTkLabel(
+            sound_frame,
+            text="Звук",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#ffffff",
+        )
+        sound_title.pack(pady=(20, 10))
+
+        # Громкость музыки
+        music_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        music_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        music_label = ctk.CTkLabel(
+            music_frame,
+            text="Громкость музыки",
+            font=ctk.CTkFont(size=14),
+            text_color="#ffffff",
+        )
+        music_label.pack(anchor="w")
+
+        self.music_slider = ctk.CTkSlider(
+            music_frame,
+            from_=0.0,
+            to=1.0,
+            number_of_steps=100,
+            command=lambda v: self._set_music_volume(float(v)),
+        )
+        self.music_slider.pack(fill="x", pady=(5, 0))
+
+        # Эффекты
+        effects_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        effects_frame.pack(fill="x", padx=20, pady=(10, 20))
+
+        effects_label = ctk.CTkLabel(
+            effects_frame,
+            text="Эффекты",
+            font=ctk.CTkFont(size=14),
+            text_color="#ffffff",
+        )
+        effects_label.pack(anchor="w")
+
+        self.effects_slider = ctk.CTkSlider(
+            effects_frame,
+            from_=0.0,
+            to=1.0,
+            number_of_steps=100,
+            command=lambda v: self._set_effects_volume(float(v)),
+        )
+        self.effects_slider.pack(fill="x", pady=(5, 0))
+
+        # Блок чекбоксов
+        options_frame = ctk.CTkFrame(self, fg_color="#041637", corner_radius=15)
+        options_frame.pack(fill="x", padx=40, pady=(0, 20))
+
+        options_title = ctk.CTkLabel(
+            options_frame,
+            text="Опции",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#ffffff",
+        )
+        options_title.pack(pady=(20, 10))
+
+        # Анимация текста
+        self.animation_switch = ctk.CTkSwitch(
+            options_frame,
+            text="Анимация текста",
+            font=ctk.CTkFont(size=14),
+            command=self._toggle_animation,
+        )
+        self.animation_switch.pack(pady=(10, 10))
+
+        # Таймер в игре
+        self.timer_switch = ctk.CTkSwitch(
+            options_frame,
+            text="Таймер в игре",
+            font=ctk.CTkFont(size=14),
+            command=self._toggle_timer,
+        )
+        self.timer_switch.pack(pady=(10, 20))
+
+        # Кнопка сброса рекордов
+        reset_btn = ctk.CTkButton(
+            self,
+            text="Сбросить все рекорды",
+            font=ctk.CTkFont(size=16),
+            fg_color="#7a1212",
+            hover_color="#a31919",
+            command=self._confirm_reset_records,
+        )
+        reset_btn.pack(pady=(0, 20))
+
+        # Загрузить настройки
+        self._load_settings()
+
+        back_btn = ctk.CTkButton(
+            self,
+            text="Назад",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self.app.switch_frame(MainMenuFrame),
+        )
+        back_btn.pack(pady=(20, 20))
+
+    def _load_settings(self) -> None:
+        settings = self.app.data_manager.get_settings()
+        music_vol = settings.get("music_volume", 0.5)
+        effects_vol = settings.get("effects_volume", 0.5)
+        animation = settings.get("animation_text", True)
+        timer = settings.get("timer_in_game", True)
+
+        self.music_slider.set(music_vol)
+        self.effects_slider.set(effects_vol)
+        self.animation_switch.select() if animation else self.animation_switch.deselect()
+        self.timer_switch.select() if timer else self.timer_switch.deselect()
+
+        self.app.sound_manager.set_music_volume(music_vol)
+        self.app.sound_manager.set_effects_volume(effects_vol)
+
+    def _set_music_volume(self, value: float) -> None:
+        self.app.sound_manager.set_volume(value)
+        self._save_settings()
+
+    def _set_effects_volume(self, value: float) -> None:
+        self.app.sound_manager.set_effects_volume(value)
+        self._save_settings()
+
+    def _toggle_animation(self) -> None:
+        self._save_settings()
+
+    def _toggle_timer(self) -> None:
+        self._save_settings()
+
+    def _save_settings(self) -> None:
+        settings = {
+            "music_volume": self.music_slider.get(),
+            "effects_volume": self.effects_slider.get(),
+            "animation_text": self.animation_switch.get(),
+            "timer_in_game": self.timer_switch.get(),
+        }
+        self.app.data_manager.save_settings(settings)
+
+    def _confirm_reset_records(self) -> None:
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Подтверждение")
+        dialog.geometry("300x150")
+        dialog.attributes("-topmost", True)
+        dialog.configure(fg_color="#020b23")
+
+        label = ctk.CTkLabel(
+            dialog,
+            text="Сбросить все рекорды?\nЭто действие необратимо.",
+            font=ctk.CTkFont(size=14),
+            text_color="#ffffff",
+        )
+        label.pack(pady=20)
+
+        def yes():
+            self.app.data_manager.clear_all_data()
+            dialog.destroy()
+
+        yes_btn = ctk.CTkButton(dialog, text="Да", command=yes, fg_color="#7a1212", hover_color="#a31919")
+        yes_btn.pack(side="left", padx=20, pady=10)
+
+        no_btn = ctk.CTkButton(dialog, text="Нет", command=dialog.destroy)
+        no_btn.pack(side="right", padx=20, pady=10)
+
+
+class RecordsFrame(ctk.CTkFrame):
+    def __init__(self, parent, app: "QuizApp") -> None:
+        super().__init__(parent, fg_color="#001122")
+        self.app = app
+        self.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            self,
+            text="ТОП-10 РЕКОРДОВ",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#FFD700",
+        )
+        title_label.pack(pady=20)
+
+        top_records = self.app.data_manager.get_top_scores()
+
+        list_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        list_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        header_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 10))
+        place_header = ctk.CTkLabel(header_frame, text="Место", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=80, anchor="w")
+        place_header.pack(side="left", padx=5)
+        name_header = ctk.CTkLabel(header_frame, text="Имя", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=200, anchor="w")
+        name_header.pack(side="left", padx=5)
+        score_header = ctk.CTkLabel(header_frame, text="Сумма", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=150, anchor="w")
+        score_header.pack(side="left", padx=5)
+
+        if not top_records:
+            empty = ctk.CTkLabel(list_frame, text="Пока нет рекордов", font=ctk.CTkFont(size=16), text_color="#ffffff")
+            empty.pack(pady=20)
+        for i, record in enumerate(top_records, start=1):
+            record_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
+            record_frame.pack(fill="x", pady=2)
+            place_label = ctk.CTkLabel(record_frame, text=str(i), font=ctk.CTkFont(size=14), text_color="#FFD700", width=80, anchor="w")
+            place_label.pack(side="left", padx=5)
+            name_label = ctk.CTkLabel(record_frame, text=record["name"], font=ctk.CTkFont(size=14), text_color="#FFD700", width=200, anchor="w")
+            name_label.pack(side="left", padx=5)
+            score_label = ctk.CTkLabel(record_frame, text=f"{record['score']:,}", font=ctk.CTkFont(size=14), text_color="#FFD700", width=150, anchor="w")
+            score_label.pack(side="left", padx=5)
+
+        back_btn = ctk.CTkButton(
+            self,
+            text="Назад",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self.app.switch_frame(MainMenuFrame),
+        )
+        back_btn.pack(pady=(20, 20))
+
+
+class ProfileFrame(ctk.CTkFrame):
+    def __init__(self, parent, app: "QuizApp") -> None:
+        super().__init__(parent, fg_color="#020b23")
+        self.app = app
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        profile = self.app.data_manager.get_profile()
+
+        # ========== ВЕРХНЯЯ ПАНЕЛЬ ==========
+        top_panel = ctk.CTkFrame(self, fg_color="transparent", height=60)
+        top_panel.grid(row=0, column=0, sticky="ew", padx=20, pady=(15, 0))
+        top_panel.grid_propagate(False)
+
+        # Заголовок слева
+        title_label = ctk.CTkLabel(
+            top_panel,
+            text="Millionaire Quiz Pro - Profile",
+            font=ctk.CTkFont(family=FONTS.get("ladder", "Arial"), size=14),
+            text_color="#ffffff",
+        )
+        title_label.pack(side="left", padx=10)
+
+        # Время, колокольчик, шестеренка справа
+        right_frame = ctk.CTkFrame(top_panel, fg_color="transparent")
+        right_frame.pack(side="right")
+
+        import time
+        current_time = time.strftime("%H:%M")
+        time_label = ctk.CTkLabel(
+            right_frame,
+            text=current_time,
+            font=ctk.CTkFont(size=14),
+            text_color="#ffffff",
+        )
+        time_label.pack(side="left", padx=5)
+
+        bell_label = ctk.CTkLabel(
+            right_frame,
+            text="🔔",
+            font=ctk.CTkFont(size=16),
+        )
+        bell_label.pack(side="left", padx=5)
+
+        settings_label = ctk.CTkLabel(
+            right_frame,
+            text="⚙️",
+            font=ctk.CTkFont(size=16),
+        )
+        settings_label.pack(side="left", padx=5)
+
+        # Если профиля нет, показать экран создания профиля
+        if not profile or not profile.get("name"):
+            self._show_create_profile()
+            return
+
+        # ========== ГЛАВНЫЙ КОНТЕНТ ==========
+        content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        content_frame.grid(row=1, column=0, sticky="nsew", padx=30, pady=20)
+
+        # ========== ЦЕНТРАЛЬНАЯ КАРТОЧКА ==========
+        card_frame = ctk.CTkFrame(
+            content_frame,
+            fg_color="#2B2B2B",
+            corner_radius=25,
+            border_color="#FFD700",
+            border_width=2,
+        )
+        card_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Вся логика карточки внутри
+        self._build_card_content(card_frame, profile)
+
+        # ========== НИЖНЯЯ КНОПКА ==========
+        back_btn = ctk.CTkButton(
+            self,
+            text="< BACK TO MAIN MENU",
+            fg_color="transparent",
+            border_color="#FFD700",
+            border_width=2,
+            text_color="#ffffff",
+            font=ctk.CTkFont(size=12),
+            command=lambda: self.app.switch_frame(MainMenuFrame),
+            hover_color="#1a4d80",
+        )
+        back_btn.grid(row=2, column=0, sticky="w", padx=20, pady=15)
+
+    def _build_card_content(self, card_frame: ctk.CTkFrame, profile: dict) -> None:
+        """Построить содержимое центральной карточки."""
+
+        # ========== ЗАГОЛОВОК (Аватар + Имя/Звание) ==========
+        header_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(20, 15))
+
+        # Аватар
+        avatar_label = ctk.CTkLabel(
+            header_frame,
+            text="👤",
+            font=ctk.CTkFont(size=70),
+            text_color="#FFD700",
+        )
+        avatar_label.pack(side="left", padx=(0, 20))
+
+        # Контейнер для имени и звания
+        info_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        info_frame.pack(side="left", fill="both", expand=True)
+
+        # Имя
+        player_name_label = ctk.CTkLabel(
+            info_frame,
+            text=f"PLAYER: {profile.get('name', 'Unknown').upper()}",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#ffffff",
+            anchor="w",
+        )
+        player_name_label.pack(anchor="w")
+
+        # Звание
+        iq_score = profile.get("iq_score", 0)
+        iq = 70 + iq_score
+        iq = max(70, min(200, iq))
+        title = self.app.data_manager.get_title(iq, profile.get("max_score", 0))
+
+        # Определить цвет звания
+        if title == "Новичок":
+            rank_color = "#ffffff"  # белый
+        elif title == "Эрудит":
+            rank_color = "#1e90ff"  # синий
+        elif title in ["Магистр", "Академик", "Миллионер"]:
+            rank_color = "#FFD700"  # золотой
+        else:
+            rank_color = "#FFD700"  # для некоторых используем золотой по умолчанию
+
+        rank_label = ctk.CTkLabel(
+            info_frame,
+            text=f"CURRENT RANK: {title}",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=rank_color,
+            anchor="w",
+        )
+        rank_label.pack(anchor="w", pady=(5, 0))
+
+        # ========== ДВЕ КОЛОНКИ СТАТИСТИКИ ==========
+        stats_container = ctk.CTkFrame(card_frame, fg_color="transparent")
+        stats_container.pack(fill="x", padx=20, pady=(10, 20))
+
+        # Левая колонка: Game IQ
+        iq_box = ctk.CTkFrame(stats_container, fg_color="#1a1a1a", corner_radius=10)
+        iq_box.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+        iq_heading = ctk.CTkLabel(
+            iq_box,
+            text="GAME IQ",
+            font=ctk.CTkFont(size=11),
+            text_color="#888888",
+            anchor="w",
+        )
+        iq_heading.pack(padx=15, pady=(15, 5), anchor="w")
+
+        iq_value = ctk.CTkLabel(
+            iq_box,
+            text=f"{int(iq)}",
+            font=ctk.CTkFont(size=42, weight="bold"),
+            text_color="#FFD700",
+        )
+        iq_value.pack(padx=15, pady=(0, 5))
+
+        iq_subtitle = ctk.CTkLabel(
+            iq_box,
+            text=f"(Base IQ: 70 + {int(iq_score)} Bonus)",
+            font=ctk.CTkFont(size=10),
+            text_color="#888888",
+            anchor="w",
+        )
+        iq_subtitle.pack(padx=15, pady=(0, 15), anchor="w")
+
+        # Правая колонка: Answer Accuracy
+        accuracy_box = ctk.CTkFrame(stats_container, fg_color="#1a1a1a", corner_radius=10)
+        accuracy_box.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+        accuracy_heading = ctk.CTkLabel(
+            accuracy_box,
+            text="ANSWER ACCURACY",
+            font=ctk.CTkFont(size=11),
+            text_color="#888888",
+            anchor="w",
+        )
+        accuracy_heading.pack(padx=15, pady=(15, 5), anchor="w")
+
+        total_questions = profile.get("total_questions_answered", 0)
+        total_correct = profile.get("total_correct_answers", 0)
+        if total_questions > 0:
+            accuracy = (total_correct / total_questions) * 100
+        else:
+            accuracy = 0
+
+        accuracy_value = ctk.CTkLabel(
+            accuracy_box,
+            text=f"{accuracy:.0f}%",
+            font=ctk.CTkFont(size=42, weight="bold"),
+            text_color="#ffffff",
+        )
+        accuracy_value.pack(padx=15, pady=(0, 10))
+
+        # Прогресс-бар
+        progress_bar = ctk.CTkProgressBar(
+            accuracy_box,
+            width=200,
+            height=14,
+            progress_color="#00FF00",
+            fg_color="#0a3d7a",
+        )
+        progress_bar.pack(padx=15, pady=(0, 8))
+        progress_bar.set(accuracy / 100)
+
+        accuracy_subtitle = ctk.CTkLabel(
+            accuracy_box,
+            text=f"Questions: {total_correct} / {total_questions} correct",
+            font=ctk.CTkFont(size=10),
+            text_color="#888888",
+            anchor="w",
+        )
+        accuracy_subtitle.pack(padx=15, pady=(0, 15), anchor="w")
+
+        # ========== RANKING PROGRESSION ==========
+        ranking_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
+        ranking_frame.pack(fill="x", padx=20, pady=(20, 20))
+
+        ranks = ["Novice", "Student", "Intellectual", "Erudite", "Master", "Academician", "Millionaire"]
+        rank_values = [70, 85, 105, 125, 150, 180, 1000000]
+
+        # Определить текущее звание по индексу
+        current_rank_idx = 0
+        for idx, (rank_name, rank_val) in enumerate(zip(ranks, rank_values)):
+            if rank_name == "Millionaire" and profile.get("max_score", 0) >= 1000000:
+                current_rank_idx = idx
+                break
+            elif rank_name != "Millionaire" and iq >= rank_val:
+                current_rank_idx = idx
+
+        # Визуализация шкалы
+        rank_visual = ctk.CTkLabel(
+            ranking_frame,
+            text="●" + "─" * 65 + "●",
+            font=ctk.CTkFont(size=10),
+            text_color="#FFD700",
+        )
+        rank_visual.pack(pady=(0, 10))
+
+        # Названия рангов
+        ranks_text = ""
+        for idx, rank_name in enumerate(ranks):
+            if idx == current_rank_idx:
+                ranks_text += f"[{rank_name}]"
+            else:
+                ranks_text += f"{rank_name}"
+            if idx < len(ranks) - 1:
+                ranks_text += "   "
+
+        ranks_label = ctk.CTkLabel(
+            ranking_frame,
+            text=ranks_text,
+            font=ctk.CTkFont(size=9),
+            text_color="#FFD700",
+        )
+        ranks_label.pack()
+
+        # ========== GAME LOG ==========
+        log_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
+        log_frame.pack(fill="x", padx=20, pady=(0, 20))
+
+        log_heading = ctk.CTkLabel(
+            log_frame,
+            text="GAME LOG (Current Session)",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#cccccc",
+            anchor="w",
+        )
+        log_heading.pack(anchor="w", pady=(0, 10))
+
+        # Получить записи о последних ответах (если есть такие данные)
+        # На данный момент будут показаны примерные записи
+        log_entries = [
+            ("Q14", "CORRECT", "+7 IQ", "#00FF00"),
+            ("Q13", "CORRECT", "+7 IQ", "#00FF00"),
+            ("Q12", "INCORRECT", "-2 IQ", "#FF6B6B"),
+        ]
+
+        for question_num, status, change, color in log_entries:
+            log_line = ctk.CTkLabel(
+                log_frame,
+                text=f"{question_num}: {status} {change}",
+                font=ctk.CTkFont(size=10),
+                text_color=color,
+                anchor="w",
+            )
+            log_line.pack(anchor="w", pady=1)
+
+    def _show_create_profile(self) -> None:
+        """Показать экран создания профиля."""
+        # Верхняя часть: заголовок и иконка
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(pady=(30, 20))
+
+        icon_label = ctk.CTkLabel(
+            header_frame,
+            text="👤",
+            font=ctk.CTkFont(size=60),
+            text_color="#ffd700",
+        )
+        icon_label.pack()
+
+        title_label = ctk.CTkLabel(
+            header_frame,
+            text="ПРОФИЛЬ ИГРОКА",
+            font=ctk.CTkFont(family=FONTS.get("ladder", "Arial"), size=24, weight="bold"),
+            text_color="#ffd700",
+        )
+        title_label.pack(pady=(10, 0))
+
+        # Создание профиля (если нет)
+        prompt_label = ctk.CTkLabel(
+            self,
+            text="Введите ваше имя:",
+            font=ctk.CTkFont(size=18),
+            text_color="#ffffff",
+        )
+        prompt_label.pack(pady=(30, 10))
+
+        self.name_entry = ctk.CTkEntry(
+            self,
+            placeholder_text="Имя игрока",
+            width=250,
+            font=ctk.CTkFont(size=16),
+        )
+        self.name_entry.pack(pady=(0, 20))
+
+        create_btn = ctk.CTkButton(
+            self,
+            text="Создать профиль",
+            command=self._create_profile,
+            fg_color="#0d5ecd",
+            hover_color="#1a75ff",
+        )
+        create_btn.pack(pady=(0, 20))
+
+        # Кнопка Назад
+        back_btn = ctk.CTkButton(
+            self,
+            text="Назад",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self.app.switch_frame(MainMenuFrame),
+        )
+        back_btn.pack(pady=(20, 20))
+
+    def _change_name(self) -> None:
+        dialog = ctk.CTkInputDialog(text="Введите новое имя:", title="Изменить имя")
+        new_name = dialog.get_input()
+        if new_name and new_name.strip():
+            profile = self.app.data_manager.get_profile() or {}
+            profile["name"] = new_name.strip()
+            with open("profile.json", 'w', encoding='utf-8') as f:
+                json.dump(profile, f, ensure_ascii=False, indent=4)
+            # Перезагрузить фрейм
+            self.app.switch_frame(ProfileFrame)
+
+    def _create_profile(self) -> None:
+        name = self.name_entry.get().strip()
+        if name:
+            self.app.data_manager.create_profile(name)
+            self.app.switch_frame(ProfileFrame)
+
+
 class QuizApp(ctk.CTk):
     def __init__(self, engine: QuizEngine, sound_manager: Optional[SoundManager] = None) -> None:
         super().__init__()
@@ -69,19 +741,68 @@ class QuizApp(ctk.CTk):
         self.safety_net_active: bool = False
 
         # Фреймы экранов
-        self.menu_frame: Optional[ctk.CTkFrame] = None
         self.lifeline_frame: Optional[ctk.CTkFrame] = None
         self.main_frame: Optional[ctk.CTkFrame] = None
         self.sidebar_frame: Optional[ctk.CTkFrame] = None
+        self.current_frame: Optional[ctk.CTkFrame] = None
 
-        # Сетка окна: 0 — подсказки, 1 — центр, 2 — лестница
+        # Сетка окна: центральная область + нижняя панель
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=3)
+        self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)
+
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        self.content_frame.grid_columnconfigure(0, weight=1)
+        self.content_frame.grid_rowconfigure(0, weight=1)
+
+        self.nav_frame = ctk.CTkFrame(self, fg_color="#020b23")
+        self.nav_frame.grid(row=1, column=0, columnspan=3, sticky="ew")
+        self.nav_frame.grid_columnconfigure(0, weight=1)
+        self.nav_frame.grid_columnconfigure(1, weight=1)
+        self.nav_frame.grid_columnconfigure(2, weight=1)
+        self.nav_frame.grid_columnconfigure(3, weight=1)
+
+        self._build_nav_bar()
 
         # Показать главное меню
         self.show_main_menu()
+
+    def _clear_current_frame(self) -> None:
+        if self.current_frame is not None:
+            if self.current_frame is self.menu_frame:
+                self.menu_frame = None
+            self.current_frame.destroy()
+            self.current_frame = None
+
+    def _build_nav_bar(self) -> None:
+        nav_buttons = [
+            ("Профиль", self.show_profile_window),
+            ("Рекорды", self.show_records),
+            ("Настройки", self.show_settings_window),
+            ("Выход", self.destroy),
+        ]
+
+        for idx, (text, command) in enumerate(nav_buttons):
+            btn = ctk.CTkButton(
+                self.nav_frame,
+                text=text,
+                font=ctk.CTkFont(size=14, weight="bold"),
+                fg_color="#10233f",
+                hover_color="#1a3b66",
+                corner_radius=0,
+                border_width=0,
+                command=command,
+            )
+            btn.grid(row=0, column=idx, sticky="nsew", padx=1, pady=5)
+
+    def switch_frame(self, frame_class, *args, **kwargs) -> None:
+        self._clear_current_frame()
+        self.current_frame = frame_class(self.content_frame, self, *args, **kwargs)
+        self.current_frame.grid(row=0, column=0, sticky="nsew")
+        self.nav_frame.grid()
 
     # ---------- Главное меню ----------
 
@@ -100,134 +821,17 @@ class QuizApp(ctk.CTk):
             self.sidebar_frame.destroy()
             self.sidebar_frame = None
 
-        if self.menu_frame is not None:
-            self.menu_frame.destroy()
+        self.nav_frame.grid()
+        self.switch_frame(MainMenuFrame)
 
-        # Основной фрейм главного экрана с тёмно-синим фоном
-        self.menu_frame = ctk.CTkFrame(self, fg_color="#020b23")
-        self.menu_frame.grid(row=0, column=0, columnspan=3, sticky="nsew")
-        self.menu_frame.grid_columnconfigure(0, weight=1)
-        self.menu_frame.grid_rowconfigure(0, weight=1)   # верхняя часть (зал)
-        self.menu_frame.grid_rowconfigure(1, weight=0)   # кнопка играть
-        self.menu_frame.grid_rowconfigure(2, weight=0)   # нижняя панель
-
-        # Верхняя зона с "зал студии" и заголовком
-        top_frame = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
-        top_frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=(20, 10))
-        top_frame.grid_columnconfigure(0, weight=1)
-        top_frame.grid_rowconfigure(0, weight=1)
-        top_frame.grid_rowconfigure(1, weight=0)
-
-        # Условный фон студии (можно потом заменить картинкой)
-        studio_frame = ctk.CTkFrame(top_frame, fg_color="#041637", corner_radius=40)
-        studio_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 20))
-        studio_frame.grid_columnconfigure(0, weight=1)
-        studio_frame.grid_rowconfigure(0, weight=1)
-
-        # Заглушка для силуэта сцены/кресел
-        center_label = ctk.CTkLabel(
-            studio_frame,
-            text="",
-            fg_color="#030d24",
-        )
-        center_label.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-
-        # Золотой баннер с названием игры
-        title_frame = ctk.CTkFrame(
-            top_frame,
-            fg_color="#071a3d",
-            corner_radius=30,
-        )
-        title_frame.grid(row=1, column=0, pady=(0, 10))
-        title_label = ctk.CTkLabel(
-            title_frame,
-            text="КТО ХОЧЕТ СТАТЬ МИЛЛИОНЕРОМ?",
-            font=ctk.CTkFont(family=FONTS["ladder"], size=26, weight="bold"),
-            text_color="#ffd700",
-            padx=40,
-            pady=12,
-        )
-        title_label.pack()
-
-        # Большая кнопка "ИГРАТЬ" в стиле кристалла
-        play_btn = ctk.CTkButton(
-            self.menu_frame,
-            text="ИГРАТЬ",
-            font=ctk.CTkFont(size=26, weight="bold"),
-            width=320,
-            height=80,
-            fg_color="#0d5ecd",
-            hover_color="#1a75ff",
-            text_color="#ffd700",
-            corner_radius=40,
-            border_width=3,
-            border_color="#4fd5ff",
-            command=self.start_game,
-        )
-        play_btn.grid(row=1, column=0, pady=(0, 10), sticky="n")
-
-        # Нижняя панель с иконками и подписями
-        bottom_frame = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
-        bottom_frame.grid(row=2, column=0, sticky="ew", padx=40, pady=(10, 20))
-        bottom_frame.grid_columnconfigure(0, weight=1)
-        bottom_frame.grid_columnconfigure(1, weight=1)
-
-        left_panel = ctk.CTkFrame(bottom_frame, fg_color="transparent")
-        left_panel.grid(row=0, column=0, sticky="w")
-
-        right_panel = ctk.CTkFrame(bottom_frame, fg_color="transparent")
-        right_panel.grid(row=0, column=1, sticky="e")
-
-        # Кнопки слева: Настройки и Рекорды
-        settings_btn = ctk.CTkButton(
-            left_panel,
-            text="⚙  НАСТРОЙКИ",
-            fg_color="#10233f",
-            hover_color="#193762",
-            corner_radius=25,
-            width=150,
-            command=self.show_settings_window,
-        )
-        settings_btn.grid(row=0, column=0, padx=5, pady=5)
-
-        records_btn = ctk.CTkButton(
-            left_panel,
-            text="🏅  РЕКОРДЫ",
-            fg_color="#10233f",
-            hover_color="#193762",
-            corner_radius=25,
-            width=150,
-            command=self.show_records,
-        )
-        records_btn.grid(row=0, column=1, padx=5, pady=5)
-
-        # Кнопки справа: Профиль и Выход
-        profile_btn = ctk.CTkButton(
-            right_panel,
-            text="👤  ПРОФИЛЬ",
-            fg_color="#10233f",
-            hover_color="#193762",
-            corner_radius=25,
-            width=150,
-            command=self.show_profile_window,
-        )
-        profile_btn.grid(row=0, column=0, padx=5, pady=5)
-
-        exit_btn = ctk.CTkButton(
-            right_panel,
-            text="⏻  ВЫХОД",
-            fg_color="#7a1212",
-            hover_color="#a31919",
-            corner_radius=25,
-            width=150,
-            command=self.destroy,
-        )
-        exit_btn.grid(row=0, column=1, padx=5, pady=5)
+        self.menu_frame = self.current_frame
 
     def start_game(self) -> None:
         if self.menu_frame is not None:
             self.menu_frame.destroy()
             self.menu_frame = None
+        self._clear_current_frame()
+        self.nav_frame.grid_remove()
 
         # Переход в игру — смена фоновой музыки
         self.sound_manager.stop_bg_music()
@@ -513,6 +1117,12 @@ class QuizApp(ctk.CTk):
         correct_index = self.current_question_data.get("correct_index", -1)
         is_correct = index == correct_index
 
+        # Получить уровень вопроса
+        level = self.engine.current_level + 1
+
+        # Обновить статистику правильных ответов и IQ
+        self.data_manager.update_correct_answers(is_correct, level)
+
         if is_correct:
             self.sound_manager.play("correct_answer.mp3")
             self.engine.check_answer(index)
@@ -656,140 +1266,14 @@ class QuizApp(ctk.CTk):
     # ---------- Окно профиля ----------
 
     def show_profile_window(self) -> None:
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Профиль игрока")
-        dialog.geometry("400x350")
-        dialog.attributes("-topmost", True)
-        dialog.configure(fg_color="#020b23")
-
-        profile = self.data_manager.get_profile()
-
-        if profile:
-            # Карточка профиля
-            avatar_label = ctk.CTkLabel(
-                dialog,
-                text="👤",
-                font=ctk.CTkFont(size=60),
-                text_color="#ffd700",
-            )
-            avatar_label.pack(pady=(20, 10))
-
-            name_label = ctk.CTkLabel(
-                dialog,
-                text=profile["name"],
-                font=ctk.CTkFont(family=FONTS["ladder"], size=24, weight="bold"),
-                text_color="#ffd700",
-            )
-            name_label.pack(pady=(0, 20))
-
-            stats_text = f"Всего игр: {profile['total_games']}\nОбщий выигрыш: {profile['total_win']} ₽"
-            stats_label = ctk.CTkLabel(
-                dialog,
-                text=stats_text,
-                font=ctk.CTkFont(size=16),
-                text_color="#ffffff",
-                justify="center",
-            )
-            stats_label.pack(pady=(0, 20))
-        else:
-            # Создание профиля
-            prompt_label = ctk.CTkLabel(
-                dialog,
-                text="Введите ваше имя:",
-                font=ctk.CTkFont(size=18),
-                text_color="#ffffff",
-            )
-            prompt_label.pack(pady=(30, 10))
-
-            name_entry = ctk.CTkEntry(
-                dialog,
-                placeholder_text="Имя игрока",
-                width=250,
-                font=ctk.CTkFont(size=16),
-            )
-            name_entry.pack(pady=(0, 20))
-
-            def create_profile():
-                name = name_entry.get().strip()
-                if name:
-                    self.profile_manager.create_profile(name)
-                    dialog.destroy()
-                    self.show_profile_window()  # Переоткрыть с профилем
-
-            create_btn = ctk.CTkButton(
-                dialog,
-                text="Создать профиль",
-                command=create_profile,
-                fg_color="#0d5ecd",
-                hover_color="#1a75ff",
-            )
-            create_btn.pack(pady=(0, 20))
-
-        # Кнопка закрыть
-        close_btn = ctk.CTkButton(
-            dialog,
-            text="Закрыть",
-            command=dialog.destroy,
-            fg_color="#7a1212",
-            hover_color="#a31919",
-        )
-        close_btn.pack(pady=(10, 20))
+        self.nav_frame.grid()
+        self.switch_frame(ProfileFrame)
 
     # ---------- Окно настроек ----------
 
     def show_settings_window(self) -> None:
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Настройки")
-        dialog.geometry("350x250")
-        dialog.attributes("-topmost", True)
-        dialog.configure(fg_color="#020b23")
-
-        title_label = ctk.CTkLabel(
-            dialog,
-            text="НАСТРОЙКИ",
-            font=ctk.CTkFont(family=FONTS["ladder"], size=20, weight="bold"),
-            text_color="#ffd700",
-        )
-        title_label.pack(pady=(20, 30))
-
-        volume_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        volume_frame.pack(fill="x", padx=20, pady=(0, 20))
-
-        volume_label = ctk.CTkLabel(
-            volume_frame,
-            text="Громкость",
-            font=ctk.CTkFont(size=14),
-            text_color="#ffffff",
-        )
-        volume_label.pack(anchor="w")
-
-        volume_slider = ctk.CTkSlider(
-            volume_frame,
-            from_=0.0,
-            to=1.0,
-            number_of_steps=100,
-            command=lambda v: self.sound_manager.set_volume(v),
-        )
-        volume_slider.set(self.sound_manager.volume)
-        volume_slider.pack(fill="x", pady=(10, 0))
-
-        clear_btn = ctk.CTkButton(
-            dialog,
-            text="Очистить все данные",
-            font=ctk.CTkFont(size=16),
-            fg_color="#7a1212",
-            hover_color="#a31919",
-            command=lambda: self._confirm_clear_data(dialog),
-        )
-        clear_btn.pack(pady=(0, 20))
-
-        close_btn = ctk.CTkButton(
-            dialog,
-            text="Закрыть",
-            font=ctk.CTkFont(size=16),
-            command=dialog.destroy,
-        )
-        close_btn.pack(pady=(10, 20))
+        self.nav_frame.grid()
+        self.switch_frame(SettingsFrame)
 
     def _confirm_clear_data(self, parent_dialog) -> None:
         confirm_dialog = ctk.CTkToplevel(parent_dialog)
@@ -885,56 +1369,8 @@ class QuizApp(ctk.CTk):
         self.show_main_menu()
 
     def show_records(self) -> None:
-        records_window = ctk.CTkToplevel(self)
-        records_window.title("Рекорды")
-        records_window.geometry("500x600")
-        records_window.configure(fg_color="#001122")  # Темно-синий фон
-
-        # Заголовок
-        title_label = ctk.CTkLabel(
-            records_window,
-            text="ТОП-10 РЕКОРДОВ",
-            font=ctk.CTkFont(size=24, weight="bold"),
-            text_color="#FFD700"  # Золотистый
-        )
-        title_label.pack(pady=20)
-
-        # Получить топ-10
-        top_records = self.data_manager.get_top_scores()
-
-        # Фрейм для списка
-        list_frame = ctk.CTkScrollableFrame(records_window, fg_color="transparent")
-        list_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-
-        # Заголовки
-        header_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 10))
-        place_header = ctk.CTkLabel(header_frame, text="Место", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=80, anchor="w")
-        place_header.pack(side="left", padx=5)
-        name_header = ctk.CTkLabel(header_frame, text="Имя", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=200, anchor="w")
-        name_header.pack(side="left", padx=5)
-        score_header = ctk.CTkLabel(header_frame, text="Сумма", font=ctk.CTkFont(size=16, weight="bold"), text_color="#FFD700", width=150, anchor="w")
-        score_header.pack(side="left", padx=5)
-
-        # Записи
-        for i, record in enumerate(top_records, start=1):
-            record_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
-            record_frame.pack(fill="x", pady=2)
-            place_label = ctk.CTkLabel(record_frame, text=str(i), font=ctk.CTkFont(size=14), text_color="#FFD700", width=80, anchor="w")
-            place_label.pack(side="left", padx=5)
-            name_label = ctk.CTkLabel(record_frame, text=record["name"], font=ctk.CTkFont(size=14), text_color="#FFD700", width=200, anchor="w")
-            name_label.pack(side="left", padx=5)
-            score_label = ctk.CTkLabel(record_frame, text=f"{record['score']:,}", font=ctk.CTkFont(size=14), text_color="#FFD700", width=150, anchor="w")
-            score_label.pack(side="left", padx=5)
-
-        # Кнопка Закрыть
-        close_btn = ctk.CTkButton(
-            records_window,
-            text="Закрыть",
-            font=ctk.CTkFont(size=16),
-            command=records_window.destroy
-        )
-        close_btn.pack(pady=20)
+        self.nav_frame.grid()
+        self.switch_frame(RecordsFrame)
 
     def _add_record(self) -> None:
         dialog = ctk.CTkToplevel(self)
