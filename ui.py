@@ -244,7 +244,7 @@ class SettingsFrame(ctk.CTkFrame):
         self.app.sound_manager.set_effects_volume(effects_vol)
 
     def _set_music_volume(self, value: float) -> None:
-        self.app.sound_manager.set_volume(value)
+        self.app.sound_manager.set_music_volume(value)
         self._save_settings()
 
     def _set_effects_volume(self, value: float) -> None:
@@ -485,6 +485,40 @@ class ProfileFrame(ctk.CTkFrame):
         )
         rank_label.pack(anchor="w", pady=(5, 0))
 
+        # Дополнительная профильная статистика
+        stats_summary_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        stats_summary_frame.pack(fill="x", pady=(10, 0))
+
+        games_label = ctk.CTkLabel(
+            stats_summary_frame,
+            text=f"Games: {profile.get('total_games', 0)}",
+            font=ctk.CTkFont(size=12),
+            text_color="#bbbbbb",
+            anchor="w",
+        )
+        games_label.pack(side="left", anchor="w")
+
+        win_label = ctk.CTkLabel(
+            stats_summary_frame,
+            text=f"Winnings: {int(profile.get('total_win', 0)):,} ₽",
+            font=ctk.CTkFont(size=12),
+            text_color="#bbbbbb",
+            anchor="e",
+        )
+        win_label.pack(side="right", anchor="e")
+
+        change_name_btn = ctk.CTkButton(
+            info_frame,
+            text="Изменить имя",
+            font=ctk.CTkFont(size=12),
+            fg_color="#0d5ecd",
+            hover_color="#1a75ff",
+            width=160,
+            corner_radius=20,
+            command=self._change_name,
+        )
+        change_name_btn.pack(anchor="w", pady=(10, 0))
+
         # ========== ДВЕ КОЛОНКИ СТАТИСТИКИ ==========
         stats_container = ctk.CTkFrame(card_frame, fg_color="transparent")
         stats_container.pack(fill="x", padx=20, pady=(10, 20))
@@ -534,14 +568,17 @@ class ProfileFrame(ctk.CTkFrame):
 
         total_questions = profile.get("total_questions_answered", 0)
         total_correct = profile.get("total_correct_answers", 0)
+        total_incorrect = profile.get("total_incorrect_answers", total_questions - total_correct)
         if total_questions > 0:
-            accuracy = (total_correct / total_questions) * 100
+            correct_percentage = (total_correct / total_questions) * 100
+            incorrect_percentage = (total_incorrect / total_questions) * 100
         else:
-            accuracy = 0
+            correct_percentage = 0
+            incorrect_percentage = 0
 
         accuracy_value = ctk.CTkLabel(
             accuracy_box,
-            text=f"{accuracy:.0f}%",
+            text=f"{correct_percentage:.0f}%",
             font=ctk.CTkFont(size=42, weight="bold"),
             text_color="#ffffff",
         )
@@ -556,14 +593,15 @@ class ProfileFrame(ctk.CTkFrame):
             fg_color="#0a3d7a",
         )
         progress_bar.pack(padx=15, pady=(0, 8))
-        progress_bar.set(accuracy / 100)
+        progress_bar.set(correct_percentage / 100)
 
         accuracy_subtitle = ctk.CTkLabel(
             accuracy_box,
-            text=f"Questions: {total_correct} / {total_questions} correct",
+            text=f"Correct: {total_correct} ({correct_percentage:.0f}%)\nIncorrect: {total_incorrect} ({incorrect_percentage:.0f}%)",
             font=ctk.CTkFont(size=10),
             text_color="#888888",
             anchor="w",
+            justify="left",
         )
         accuracy_subtitle.pack(padx=15, pady=(0, 15), anchor="w")
 
@@ -609,6 +647,45 @@ class ProfileFrame(ctk.CTkFrame):
             text_color="#FFD700",
         )
         ranks_label.pack()
+
+        # ========== PERSONAL RECORDS ==========
+        records_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
+        records_frame.pack(fill="x", padx=20, pady=(20, 20))
+
+        records_heading = ctk.CTkLabel(
+            records_frame,
+            text="PERSONAL RECORDS",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#FFD700",
+            anchor="w",
+        )
+        records_heading.pack(anchor="w", pady=(0, 10))
+
+        player_records = self.app.data_manager.get_player_records(profile.get("name", ""))
+
+        if player_records:
+            # Сортировать по score убыванию
+            player_records.sort(key=lambda x: x["score"], reverse=True)
+            # Показать топ 5
+            for i, record in enumerate(player_records[:5]):
+                record_text = f"{i+1}. {record['score']:,} ₽"
+                record_label = ctk.CTkLabel(
+                    records_frame,
+                    text=record_text,
+                    font=ctk.CTkFont(size=12),
+                    text_color="#ffffff",
+                    anchor="w",
+                )
+                record_label.pack(anchor="w", pady=2)
+        else:
+            no_records_label = ctk.CTkLabel(
+                records_frame,
+                text="No records yet. Win a game to set your first record!",
+                font=ctk.CTkFont(size=12),
+                text_color="#888888",
+                anchor="w",
+            )
+            no_records_label.pack(anchor="w")
 
         # ========== GAME LOG ==========
         log_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
@@ -729,6 +806,12 @@ class QuizApp(ctk.CTk):
         self.title("Кто хочет стать миллионером?")
         self.geometry("1200x700")
         self.resizable(False, False)
+
+        # Ensure window is visible and focused
+        self.lift()
+        self.focus_force()
+        self.attributes("-topmost", True)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
         # Состояние
         self.is_processing: bool = False
@@ -858,18 +941,18 @@ class QuizApp(ctk.CTk):
         self.lifeline_frame.grid_columnconfigure(0, weight=1)
 
         cfg = {
-            "width": 150,
-            "height": 70,
-            "corner_radius": 35,
+            "width": 120,
+            "height": 120,
+            "corner_radius": 60,
             "fg_color": "#10233f",
             "hover_color": "#1a3b66",
             "text_color": "#e6e6e6",
-            "font": ctk.CTkFont(size=14, weight="bold"),
+            "font": ctk.CTkFont(size=12, weight="bold"),
         }
 
         self.btn_5050 = ctk.CTkButton(
             self.lifeline_frame,
-            text="50 : 50",
+            text="50:50",
             command=self.use_hint_5050,
             **cfg,
         )
@@ -904,8 +987,9 @@ class QuizApp(ctk.CTk):
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
         self.main_frame.grid_rowconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(1, weight=2)
-        self.main_frame.grid_rowconfigure(2, weight=3)
-        self.main_frame.grid_rowconfigure(3, weight=0)
+        self.main_frame.grid_rowconfigure(2, weight=0)
+        self.main_frame.grid_rowconfigure(3, weight=1)
+        self.main_frame.grid_rowconfigure(4, weight=1)
         self.main_frame.grid_columnconfigure((0, 1), weight=1)
 
         self.question_header_label = ctk.CTkLabel(
@@ -928,17 +1012,26 @@ class QuizApp(ctk.CTk):
         )
         self.question_label.grid(row=1, column=0, columnspan=2, padx=40, pady=(0, 20), sticky="nsew")
 
+        self.timer_label = ctk.CTkLabel(
+            self.main_frame,
+            text="",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#ffffff",
+        )
+        self.timer_label.grid(row=2, column=0, columnspan=2, pady=(0, 20))
+
         self.answer_buttons = []
         for i in range(4):
-            row = 2 + i // 2
+            row = 3 + i // 2
             col = i % 2
             self.main_frame.grid_rowconfigure(row, weight=1)
             btn = ctk.CTkButton(
                 self.main_frame,
                 text=f"{chr(ord('A') + i)}: ",
-                font=ctk.CTkFont(family=FONTS["question"], size=18, weight="bold"),
-                height=60,
-                corner_radius=30,
+                font=ctk.CTkFont(family=FONTS["question"], size=14, weight="bold"),
+                width=120,
+                height=120,
+                corner_radius=60,
                 fg_color="#10233f",
                 hover_color="#1a3b66",
                 text_color="#ffd271",
@@ -948,14 +1041,6 @@ class QuizApp(ctk.CTk):
             )
             btn.grid(row=row, column=col, padx=30, pady=8, sticky="nsew")
             self.answer_buttons.append(btn)
-
-        self.timer_label = ctk.CTkLabel(
-            self.main_frame,
-            text="",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="#ffffff",
-        )
-        self.timer_label.grid(row=3, column=0, columnspan=2, pady=(10, 5))
 
     def _create_sidebar(self) -> None:
         self.sidebar_frame = ctk.CTkFrame(self, width=220, fg_color="#050e2a")
@@ -1373,23 +1458,32 @@ class QuizApp(ctk.CTk):
         self.switch_frame(RecordsFrame)
 
     def _add_record(self) -> None:
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Новый рекорд!")
-        dialog.geometry("300x200")
-        dialog.attributes("-topmost", True)
+        profile = self.data_manager.get_profile()
+        if profile and profile.get("name"):
+            score_str = self.prize_levels[self.engine.current_level]
+            score = int(score_str.replace(" ", "").replace("₽", ""))
+            self.data_manager.save_score(profile["name"], score)
+            print(f"Record saved: {profile['name']} - {score} ₽")
+        else:
+            # If no profile, ask for name
+            dialog = ctk.CTkToplevel(self)
+            dialog.title("Новый рекорд!")
+            dialog.geometry("300x200")
+            dialog.attributes("-topmost", True)
 
-        label = ctk.CTkLabel(dialog, text="Введите ваше имя:")
-        label.pack(pady=20)
+            label = ctk.CTkLabel(dialog, text="Введите ваше имя:")
+            label.pack(pady=20)
 
-        name_entry = ctk.CTkEntry(dialog, placeholder_text="Имя")
-        name_entry.pack(pady=10)
+            name_entry = ctk.CTkEntry(dialog, placeholder_text="Имя")
+            name_entry.pack(pady=10)
 
-        def save_record():
-            name = name_entry.get().strip()
-            if name:
-                score = self.prize_levels[self.engine.current_level]
-                self.data_manager.save_score(name, score)
-            dialog.destroy()
+            def save_record():
+                name = name_entry.get().strip()
+                if name:
+                    score_str = self.prize_levels[self.engine.current_level]
+                    score = int(score_str.replace(" ", "").replace("₽", ""))
+                    self.data_manager.save_score(name, score)
+                dialog.destroy()
 
-        save_btn = ctk.CTkButton(dialog, text="Сохранить", command=save_record)
-        save_btn.pack(pady=10)
+            save_btn = ctk.CTkButton(dialog, text="Сохранить", command=save_record)
+            save_btn.pack(pady=10)

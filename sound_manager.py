@@ -1,39 +1,39 @@
 import os
 import threading
-import multiprocessing
 
 try:
-    from playsound import playsound
+    import pygame
+    pygame.mixer.init()
 except ImportError:
-    playsound = None
-
-
-def _playsound_process(path: str) -> None:
-    try:
-        playsound(path)
-    except Exception as e:
-        print(f"[SoundManager] Ошибка воспроизведения: {e}")
+    pygame = None
 
 
 class SoundManager:
     def __init__(self, sounds_dir: str = "assets/sounds"):
         # Абсолютный путь (от корня проекта)
         self.sounds_dir = os.path.abspath(sounds_dir)
-        self.enabled = playsound is not None
-        self.bg_music_process = None
+        self.enabled = pygame is not None
+        self.music_volume = 1.0
+        self.effects_volume = 1.0
+        self.bg_music_playing = False
 
         if not self.enabled:
-            print("[SoundManager] playsound не установлен — звук отключен")
+            print("[SoundManager] pygame не установлен — звук отключен")
         else:
             print(f"[SoundManager] Инициализирован (путь: {self.sounds_dir})")
 
     def _resolve_path(self, filename: str) -> str:
         return os.path.abspath(os.path.join(self.sounds_dir, filename))
 
-    def set_volume(self, volume: float) -> None:
-        # playsound не поддерживает изменение громкости, сохраняем значение для совместимости.
-        self.volume = max(0.0, min(1.0, volume))
-        print(f"[SoundManager] Установлена громкость (симулированно): {self.volume}")
+    def set_music_volume(self, volume: float) -> None:
+        self.music_volume = max(0.0, min(1.0, volume))
+        if self.enabled:
+            pygame.mixer.music.set_volume(self.music_volume)
+        print(f"[SoundManager] Установлена громкость музыки: {self.music_volume}")
+
+    def set_effects_volume(self, volume: float) -> None:
+        self.effects_volume = max(0.0, min(1.0, volume))
+        print(f"[SoundManager] Установлена громкость эффектов: {self.effects_volume}")
 
     def play_bg_music(self, filename: str) -> None:
         print(f"[SoundManager] Playing background music: {filename}")
@@ -48,22 +48,16 @@ class SoundManager:
 
         self.stop_bg_music()
 
-        self.bg_music_process = multiprocessing.Process(
-            target=_playsound_process,
-            args=(path,),
-            daemon=True,
-        )
-        self.bg_music_process.start()
+        pygame.mixer.music.load(path)
+        pygame.mixer.music.play()
+        self.bg_music_playing = True
 
     def stop_bg_music(self) -> None:
         if not self.enabled:
             return
-        if self.bg_music_process is not None and self.bg_music_process.is_alive():
-            try:
-                self.bg_music_process.terminate()
-            except Exception as e:
-                print(f"[SoundManager] Ошибка остановки bg music: {e}")
-        self.bg_music_process = None
+        if self.bg_music_playing:
+            pygame.mixer.music.stop()
+        self.bg_music_playing = False
 
     def play(self, filename: str) -> None:
         print(f"[SoundManager] Playing sound: {filename}")
@@ -76,4 +70,12 @@ class SoundManager:
             print(f"[SoundManager] Файл не найден: {path}")
             return
 
-        threading.Thread(target=_playsound_process, args=(path,), daemon=True).start()
+        def _play_sound():
+            try:
+                sound = pygame.mixer.Sound(path)
+                sound.set_volume(self.effects_volume)
+                sound.play()
+            except Exception as e:
+                print(f"[SoundManager] Ошибка воспроизведения: {e}")
+
+        threading.Thread(target=_play_sound, daemon=True).start()

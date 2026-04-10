@@ -40,6 +40,10 @@ class DataManager:
     def get_top_scores(self) -> List[Dict[str, any]]:
         return self._load_scores()
 
+    def get_player_records(self, player_name: str) -> List[Dict[str, any]]:
+        scores = self._load_scores()
+        return [score for score in scores if score.get("name") == player_name]
+
     def _load_scores(self) -> List[Dict[str, any]]:
         if os.path.exists(self.stats_file):
             try:
@@ -74,6 +78,7 @@ class DataManager:
         profile.setdefault("max_score", 0)
         profile.setdefault("total_questions_answered", 0)
         profile.setdefault("total_correct_answers", 0)
+        profile.setdefault("total_incorrect_answers", 0)
         profile.setdefault("iq_score", 0)
 
         profile["total_games"] = int(profile["total_games"]) + 1
@@ -87,6 +92,7 @@ class DataManager:
         profile = self.get_profile() or {}
         profile.setdefault("total_questions_answered", 0)
         profile.setdefault("total_correct_answers", 0)
+        profile.setdefault("total_incorrect_answers", 0)
         profile.setdefault("iq_score", 0)
 
         profile["total_questions_answered"] += 1
@@ -100,6 +106,7 @@ class DataManager:
             else:
                 profile["iq_score"] += 7
         else:
+            profile["total_incorrect_answers"] += 1
             # Штраф за неверный ответ (меньше на сложных)
             if level <= 5:
                 profile["iq_score"] -= 2
@@ -119,6 +126,7 @@ class DataManager:
             "max_score": 0,
             "total_questions_answered": 0,
             "total_correct_answers": 0,
+            "total_incorrect_answers": 0,
             "iq_score": 0
         }
         with open(self.profile_file, 'w', encoding='utf-8') as f:
