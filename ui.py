@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from typing import Optional
+from typing import Optional, Dict, Any
 from logic import QuizEngine
 import os
 from data_handler import DataManager
@@ -219,14 +219,15 @@ class SettingsFrame(ctk.CTkFrame):
         # Загрузить настройки
         self._load_settings()
 
-        back_btn = ctk.CTkButton(
+        # Кнопка В главное меню
+        menu_btn = ctk.CTkButton(
             self,
-            text="Назад",
+            text="В главное меню",
             fg_color="#10233f",
             hover_color="#1a3b66",
             command=lambda: self.app.switch_frame(MainMenuFrame),
         )
-        back_btn.pack(pady=(20, 20))
+        menu_btn.pack(pady=(20, 20))
 
     def _load_settings(self) -> None:
         settings = self.app.data_manager.get_settings()
@@ -333,14 +334,181 @@ class RecordsFrame(ctk.CTkFrame):
             score_label = ctk.CTkLabel(record_frame, text=f"{record['score']:,}", font=ctk.CTkFont(size=14), text_color="#FFD700", width=150, anchor="w")
             score_label.pack(side="left", padx=5)
 
-        back_btn = ctk.CTkButton(
+        # Кнопка В главное меню
+        menu_btn = ctk.CTkButton(
             self,
-            text="Назад",
+            text="В главное меню",
             fg_color="#10233f",
             hover_color="#1a3b66",
             command=lambda: self.app.switch_frame(MainMenuFrame),
         )
-        back_btn.pack(pady=(20, 20))
+        menu_btn.pack(pady=(20, 20))
+
+
+class AchievementsFrame(ctk.CTkFrame):
+    def __init__(self, parent, app: "QuizApp") -> None:
+        super().__init__(parent, fg_color="#020b23")
+        self.app = app
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # Заголовок
+        title_label = ctk.CTkLabel(
+            self,
+            text="ДОСТИЖЕНИЯ",
+            font=ctk.CTkFont(family=FONTS["ladder"], size=28, weight="bold"),
+            text_color="#ffd700",
+        )
+        title_label.grid(row=0, column=0, pady=(20, 10), sticky="n")
+
+        # Основное содержимое
+        content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        content_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=20)
+        content_frame.grid_columnconfigure(0, weight=1)
+
+        # Вкладки
+        tab_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        tab_frame.pack(fill="x", pady=(0, 20))
+
+        self.tab_state = {"unlocked": True}
+
+        unlocked_btn = ctk.CTkButton(
+            tab_frame,
+            text="Разблокировано ✓",
+            fg_color="#0d5ecd",
+            hover_color="#1a75ff",
+            command=lambda: self._switch_tab(True),
+        )
+        unlocked_btn.pack(side="left", padx=5)
+
+        locked_btn = ctk.CTkButton(
+            tab_frame,
+            text="Заблокировано 🔒",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self._switch_tab(False),
+        )
+        locked_btn.pack(side="left", padx=5)
+
+        self.unlocked_btn = unlocked_btn
+        self.locked_btn = locked_btn
+
+        # Список достижений
+        self.list_frame = ctk.CTkScrollableFrame(content_frame, fg_color="transparent")
+        self.list_frame.pack(fill="both", expand=True)
+
+        self._display_achievements()
+
+        # Кнопка В главное меню
+        menu_btn = ctk.CTkButton(
+            self,
+            text="В главное меню",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self.app.switch_frame(MainMenuFrame),
+        )
+        menu_btn.grid(row=2, column=0, pady=(20, 20), sticky="n")
+
+    def _switch_tab(self, unlocked: bool) -> None:
+        """Переключить вкладку между разблокированными и заблокированными."""
+        self.tab_state["unlocked"] = unlocked
+
+        # Обновить цвета кнопок
+        if unlocked:
+            self.unlocked_btn.configure(fg_color="#0d5ecd")
+            self.locked_btn.configure(fg_color="#10233f")
+        else:
+            self.unlocked_btn.configure(fg_color="#10233f")
+            self.locked_btn.configure(fg_color="#0d5ecd")
+
+        self._display_achievements()
+
+    def _display_achievements(self) -> None:
+        """Отобразить достижения."""
+        # Очистить список
+        for widget in self.list_frame.winfo_children():
+            widget.destroy()
+
+        # Получить достижения
+        if self.tab_state["unlocked"]:
+            achievements = self.app.data_manager.get_unlocked_achievements()
+            empty_message = "Достижения не разблокированы"
+        else:
+            achievements = self.app.data_manager.get_locked_achievements()
+            empty_message = "Все достижения разблокированы!"
+
+        if not achievements:
+            empty_label = ctk.CTkLabel(
+                self.list_frame,
+                text=empty_message,
+                font=ctk.CTkFont(size=16),
+                text_color="#888888",
+            )
+            empty_label.pack(pady=40)
+            return
+
+        # Отобразить каждое достижение
+        for achievement in achievements:
+            self._create_achievement_card(achievement)
+
+    def _create_achievement_card(self, achievement: Dict[str, Any]) -> None:
+        """Создать карточку достижения."""
+        card_frame = ctk.CTkFrame(
+            self.list_frame,
+            fg_color="#041637",
+            corner_radius=15,
+            border_color="#ffd700" if self.tab_state["unlocked"] else "#444444",
+            border_width=2 if self.tab_state["unlocked"] else 1,
+        )
+        card_frame.pack(fill="x", pady=10)
+
+        # Содержимое карточки
+        content = ctk.CTkFrame(card_frame, fg_color="transparent")
+        content.pack(fill="both", padx=15, pady=12)
+
+        # Иконка и информация
+        left_frame = ctk.CTkFrame(content, fg_color="transparent")
+        left_frame.pack(side="left", padx=(0, 15))
+
+        icon_label = ctk.CTkLabel(
+            left_frame,
+            text=achievement["icon"],
+            font=ctk.CTkFont(size=40),
+        )
+        icon_label.pack()
+
+        # Название и описание
+        info_frame = ctk.CTkFrame(content, fg_color="transparent")
+        info_frame.pack(side="left", fill="both", expand=True)
+
+        name_label = ctk.CTkLabel(
+            info_frame,
+            text=achievement["name"],
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#ffd700" if self.tab_state["unlocked"] else "#ffffff",
+            anchor="w",
+        )
+        name_label.pack(anchor="w")
+
+        desc_label = ctk.CTkLabel(
+            info_frame,
+            text=achievement["description"],
+            font=ctk.CTkFont(size=12),
+            text_color="#bbbbbb",
+            anchor="w",
+        )
+        desc_label.pack(anchor="w", pady=(5, 0))
+
+        # Дата разблокировки если разблокировано
+        if self.tab_state["unlocked"] and achievement.get("unlocked_date"):
+            date_label = ctk.CTkLabel(
+                info_frame,
+                text=f"Разблокировано: {achievement['unlocked_date'][:10]}",
+                font=ctk.CTkFont(size=10),
+                text_color="#666666",
+                anchor="w",
+            )
+            date_label.pack(anchor="w", pady=(5, 0))
 
 
 class ProfileFrame(ctk.CTkFrame):
@@ -417,18 +585,15 @@ class ProfileFrame(ctk.CTkFrame):
         self._build_card_content(card_frame, profile)
 
         # ========== НИЖНЯЯ КНОПКА ==========
-        back_btn = ctk.CTkButton(
+        menu_btn = ctk.CTkButton(
             self,
-            text="< BACK TO MAIN MENU",
-            fg_color="transparent",
-            border_color="#FFD700",
-            border_width=2,
-            text_color="#ffffff",
-            font=ctk.CTkFont(size=12),
+            text="В главное меню",
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            font=ctk.CTkFont(size=14),
             command=lambda: self.app.switch_frame(MainMenuFrame),
-            hover_color="#1a4d80",
         )
-        back_btn.grid(row=2, column=0, sticky="w", padx=20, pady=15)
+        menu_btn.grid(row=2, column=0, sticky="w", padx=20, pady=15)
 
     def _build_card_content(self, card_frame: ctk.CTkFrame, profile: dict) -> None:
         """Построить содержимое центральной карточки."""
@@ -833,20 +998,23 @@ class QuizApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure(2, weight=1)
+        self.grid_columnconfigure(3, weight=1)
+        self.grid_columnconfigure(4, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
 
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        self.content_frame.grid(row=0, column=0, columnspan=5, sticky="nsew")
         self.content_frame.grid_columnconfigure(0, weight=1)
         self.content_frame.grid_rowconfigure(0, weight=1)
 
         self.nav_frame = ctk.CTkFrame(self, fg_color="#020b23")
-        self.nav_frame.grid(row=1, column=0, columnspan=3, sticky="ew")
+        self.nav_frame.grid(row=1, column=0, columnspan=5, sticky="ew")
         self.nav_frame.grid_columnconfigure(0, weight=1)
         self.nav_frame.grid_columnconfigure(1, weight=1)
         self.nav_frame.grid_columnconfigure(2, weight=1)
         self.nav_frame.grid_columnconfigure(3, weight=1)
+        self.nav_frame.grid_columnconfigure(4, weight=1)
 
         self._build_nav_bar()
 
@@ -863,6 +1031,7 @@ class QuizApp(ctk.CTk):
     def _build_nav_bar(self) -> None:
         nav_buttons = [
             ("Профиль", self.show_profile_window),
+            ("Достижения", self.show_achievements_window),
             ("Рекорды", self.show_records),
             ("Настройки", self.show_settings_window),
             ("Выход", self.destroy),
@@ -1354,6 +1523,14 @@ class QuizApp(ctk.CTk):
         self.nav_frame.grid()
         self.switch_frame(ProfileFrame)
 
+    # ---------- Окно достижений ----------
+
+    def show_achievements_window(self) -> None:
+        # Обновить достижения перед отображением
+        self.data_manager.update_achievements()
+        self.nav_frame.grid()
+        self.switch_frame(AchievementsFrame)
+
     # ---------- Окно настроек ----------
 
     def show_settings_window(self) -> None:
@@ -1410,9 +1587,11 @@ class QuizApp(ctk.CTk):
         end_frame = ctk.CTkFrame(self, fg_color="transparent")
         end_frame.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=20, pady=20)
         end_frame.grid_columnconfigure(0, weight=1)
+        end_frame.grid_columnconfigure(1, weight=0)
+        end_frame.grid_columnconfigure(2, weight=1)
         end_frame.grid_rowconfigure(0, weight=1)
-        end_frame.grid_rowconfigure(1, weight=0)
-        end_frame.grid_rowconfigure(2, weight=0)
+        end_frame.grid_rowconfigure(1, weight=1)
+        end_frame.grid_rowconfigure(2, weight=1)
         # Завершение игры — остановка фоновой музыки
         self.sound_manager.stop_bg_music()
         if win:
@@ -1427,24 +1606,58 @@ class QuizApp(ctk.CTk):
             win_amount = 0
 
         self.data_manager.update_profile(win_amount)
+        # Обновить и разблокировать достижения
+        self.data_manager.update_achievements()
 
         title_lbl = ctk.CTkLabel(
             end_frame,
             text=title_text,
-            font=ctk.CTkFont(size=40, weight="bold"),
+            font=ctk.CTkFont(size=60, weight="bold"),
             text_color=color,
         )
-        title_lbl.grid(row=0, column=0, pady=20)
+        title_lbl.grid(row=1, column=1, pady=40,padx=10, sticky ='e')
+
+        # Кнопки внизу
+        buttons_frame = ctk.CTkFrame(end_frame, fg_color="transparent")
+        buttons_frame.grid(row=2, column=1, pady=40)
+        buttons_frame.grid_columnconfigure(0, weight=0)
+        buttons_frame.grid_columnconfigure(1, weight=0)
 
         restart_btn = ctk.CTkButton(
-            end_frame,
+            buttons_frame,
             text="Играть снова",
-            font=ctk.CTkFont(size=20),
+            font=ctk.CTkFont(size=24, weight="bold"),
+            width=220,
+            height=70,
+            corner_radius=20,
             command=lambda: self.restart_game(end_frame),
         )
-        restart_btn.grid(row=2, column=0, pady=20)
+        restart_btn.grid(row=0, column=0, padx=15)
+
+        menu_btn = ctk.CTkButton(
+            buttons_frame,
+            text="В меню",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            width=220,
+            height=70,
+            corner_radius=20,
+            fg_color="#10233f",
+            hover_color="#1a3b66",
+            command=lambda: self._go_to_main_menu(end_frame),
+        )
+        menu_btn.grid(row=0, column=1, padx=15)
 
     def restart_game(self, end_frame: ctk.CTkFrame) -> None:
+        end_frame.destroy()
+        self.engine.prepare_new_game()
+        self.is_processing = False
+        self.current_question_data = None
+        self.used_call_friend = False
+        self.safety_net_active = False
+        self.show_main_menu()
+
+    def _go_to_main_menu(self, end_frame: ctk.CTkFrame) -> None:
+        """Вернуться в главное меню."""
         end_frame.destroy()
         self.engine.prepare_new_game()
         self.is_processing = False

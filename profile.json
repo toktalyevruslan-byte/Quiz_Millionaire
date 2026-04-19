@@ -1,11 +1,11 @@
 {
     "name": "Heckfy",
-    "total_games": 14,
+    "total_games": 22,
     "max_win": 0,
     "total_win": 0,
-    "total_questions_answered": 11,
-    "total_correct_answers": 4,
-    "total_incorrect_answers": 7,
-    "iq_score": -10,
+    "total_questions_answered": 23,
+    "total_correct_answers": 8,
+    "total_incorrect_answers": 15,
+    "iq_score": -22,
     "max_score": 0
 }
